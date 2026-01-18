@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import "./App.css";
+import Dashboard from "./Dashboard";
 
 // ---------- Roles & RBAC ----------
 const ROLES = {
@@ -75,7 +77,7 @@ const demoUsers = [
   },
 ];
 
-// ---------- Projects, groups, tasks, chat ----------
+// ---------- Data ----------
 const initialProjects = [
   { id: "p1", name: "KYC Engine", department: "Compliance", health: 82 },
   { id: "p2", name: "Payments 2.0", department: "Payments", health: 64 },
@@ -176,8 +178,7 @@ const initialPoints = {
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-const isBeforeOrSame = (a, b) =>
-  new Date(a).getTime() <= new Date(b).getTime();
+const isBeforeOrSame = (a, b) => new Date(a).getTime() <= new Date(b).getTime();
 
 // ---------- Root App ----------
 function App() {
@@ -192,63 +193,65 @@ function App() {
   const [files, setFiles] = useState(initialFiles);
   const [points, setPoints] = useState(initialPoints);
 
+  const [activeProjectId, setActiveProjectId] = useState("p1");
+  const [activeGroupId, setActiveGroupId] = useState("g1");
+
   const currentUser = useMemo(
     () =>
       demoUsers.find((u) => u.id === currentUserId) ??
       (currentUserId ? null : null),
-    [currentUserId]
+    [currentUserId],
   );
+
+  const navigate = useNavigate();
 
   const handleLogin = (e) => {
     e.preventDefault();
     const trimmed = loginIdInput.trim().toLowerCase();
-    const found = demoUsers.find(
-      (u) => u.loginId.toLowerCase() === trimmed
-    );
+    const found = demoUsers.find((u) => u.loginId.toLowerCase() === trimmed);
     if (!found) {
       setLoginError("User ID not found. Please check with admin.");
       return;
     }
     setCurrentUserId(found.id);
     setLoginError("");
+    navigate("/home");
   };
 
   const handleLogout = () => {
     setCurrentUserId(null);
     setLoginIdInput("");
     setLoginError("");
+    navigate("/");
   };
 
+  // project visibility by role
   const visibleProjects = useMemo(() => {
     if (!currentUser) return [];
     if (currentUser.role === ROLES.EMPLOYEE) {
       const myProjectIds = new Set(
         groups
           .filter((g) => g.members.includes(currentUser.id))
-          .map((g) => g.projectId)
+          .map((g) => g.projectId),
       );
       return projects.filter((p) => myProjectIds.has(p.id));
     }
-    if (currentUser.role === ROLES.MANAGER) {
-      return projects;
-    }
-    if (currentUser.role === ROLES.COMPANY_HEAD) {
+    if (
+      currentUser.role === ROLES.MANAGER ||
+      currentUser.role === ROLES.COMPANY_HEAD
+    ) {
       return projects;
     }
     const myProjectIds = new Set(
       groups
         .filter((g) => g.members.includes(currentUser.id))
-        .map((g) => g.projectId)
+        .map((g) => g.projectId),
     );
     return projects.filter((p) => myProjectIds.has(p.id));
   }, [currentUser, groups, projects]);
 
-  const [activeProjectId, setActiveProjectId] = useState("p1");
-  const [activeGroupId, setActiveGroupId] = useState("g1");
-
   const activeProject =
-    visibleProjects.find((p) => p.id === activeProjectId) ||
-    visibleProjects[0];
+    visibleProjects.find((p) => p.id === activeProjectId) || visibleProjects[0];
 
   const visibleGroupsForProject = useMemo(() => {
     if (!currentUser || !activeProject) return [];
@@ -334,7 +337,7 @@ function App() {
           awardPoints(t.assigneeId, 25);
         }
         return { ...t, status, completedAt };
-      })
+      }),
     );
   };
 
@@ -342,8 +345,8 @@ function App() {
     if (!currentUser) return;
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, assigneeId: currentUser.id } : t
-      )
+        t.id === taskId ? { ...t, assigneeId: currentUser.id } : t,
+      ),
     );
   };
 
@@ -370,23 +373,31 @@ function App() {
     (t) =>
       t.status === "done" &&
       t.completedAt &&
-      isBeforeOrSame(t.completedAt, t.dueDate)
+      isBeforeOrSame(t.completedAt, t.dueDate),
   );
   const bonusProgress =
     myBonusEligible.length === 0
       ? 0
       : Math.round(
-          (myCompletedBeforeDue.length / myBonusEligible.length) * 100
+          (myCompletedBeforeDue.length / myBonusEligible.length) * 100,
         );
 
-  // ---------- Login screen ----------
+  const leaderboard = [...demoUsers]
+    .map((u) => ({ ...u, score: points[u.id] || 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  const avgTeamXp =
+    leaderboard.reduce((sum, u) => sum + u.score, 0) /
+    (leaderboard.length || 1);
+
+  // ----------- Login page -----------
   if (!currentUser) {
     return (
       <div className="login-shell">
         <div className="login-card">
-          <h1>DeltaCollab Control Room</h1>
+          <h1>Company Control Room</h1>
           <p className="login-sub">
-            Enter your company ID to open your role‑based workspace.
+            Enter your company ID to access your role‑based dashboard.
           </p>
           <form onSubmit={handleLogin} className="login-form">
             <label>
@@ -397,23 +408,20 @@ function App() {
                 placeholder="hd001 / mn101 / pm205 / tl305 / em502"
               />
             </label>
-            {loginError && (
-              <div className="login-error">{loginError}</div>
-            )}
+            {loginError && <div className="login-error">{loginError}</div>}
             <button type="submit" className="btn-primary">
               Sign in
             </button>
           </form>
           <div className="login-hint">
-            Demo IDs:
-            <span>hd001, mn101, pm205, tl305, em502</span>
+            Demo IDs: hd001, mn101, pm205, tl305, em502
           </div>
         </div>
       </div>
     );
   }
 
-  // ---------- Main dashboard ----------
+  // ----------- Layout with nav + routes -----------
   return (
     <div className="app-shell">
       <Header
@@ -421,61 +429,102 @@ function App() {
         onUserChange={setCurrentUserId}
         onLogout={handleLogout}
       />
+      <div className="nav-tabs">
+        <NavLink to="/home" className="nav-tab">
+          Home
+        </NavLink>
+        <NavLink to="/projects" className="nav-tab">
+          Projects & teams
+        </NavLink>
+        <NavLink to="/chat" className="nav-tab">
+          Chat & files
+        </NavLink>
+        <NavLink to="/analytics" className="nav-tab">
+          Analytics & XP
+        </NavLink>
+      </div>
 
-      <div className="app-layout">
-        <Sidebar
-          user={currentUser}
-          projects={visibleProjects}
-          activeProject={activeProject}
-          groups={visibleGroupsForProject}
-          activeGroup={activeGroup}
-          onProjectSelect={setActiveProjectId}
-          onGroupSelect={setActiveGroupId}
-          onCreateGroup={handleCreateGroup}
-        />
-
-        <main className="main-area">
-          <TopStrip user={currentUser} project={activeProject} />
-
-          {activeGroup ? (
-            <CenterColumn
-              user={currentUser}
-              project={activeProject}
-              group={activeGroup}
-              allUsers={demoUsers}
-              messages={messages.filter(
-                (m) => m.groupId === activeGroup.id
-              )}
-              files={files.filter((f) => f.groupId === activeGroup.id)}
-              tasks={tasks.filter((t) => t.groupId === activeGroup.id)}
-              onSendMessage={handleSendMessage}
-              onUploadFile={handleUploadFile}
-              onToggleTaskStatus={handleToggleTaskStatus}
-              onAssignToMe={handleAssignToMe}
-              onCreateTask={handleCreateTask}
-            />
-          ) : (
-            <div className="empty-state">
-              <h2>Select or create a squad</h2>
-              <p>Managers and leads can spin up focused squads per project.</p>
-            </div>
-          )}
-        </main>
-
-        <RightColumn
-          user={currentUser}
-          points={points}
-          users={demoUsers}
-          bonusProgress={bonusProgress}
-          myTasks={myBonusEligible}
-          myCompletedBeforeDue={myCompletedBeforeDue}
-        />
+      <div className="page-shell">
+        <Routes>
+          <Route
+            path="/home"
+            element={
+              <HomePage
+                user={currentUser}
+                projects={visibleProjects}
+                leaderboard={leaderboard}
+                avgTeamXp={avgTeamXp}
+              />
+            }
+          />
+          <Route
+            path="/projects"
+            element={
+              <ProjectsPage
+                user={currentUser}
+                projects={visibleProjects}
+                activeProject={activeProject}
+                setActiveProjectId={setActiveProjectId}
+                groups={visibleGroupsForProject}
+                activeGroup={activeGroup}
+                setActiveGroupId={setActiveGroupId}
+                tasks={tasks}
+                onCreateGroup={handleCreateGroup}
+                onCreateTask={handleCreateTask}
+                onToggleTaskStatus={handleToggleTaskStatus}
+                onAssignToMe={handleAssignToMe}
+                allUsers={demoUsers}
+              />
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <ChatPage
+                user={currentUser}
+                project={activeProject}
+                group={activeGroup}
+                messages={messages.filter((m) => m.groupId === activeGroup?.id)}
+                files={files.filter((f) => f.groupId === activeGroup?.id)}
+                onSendMessage={handleSendMessage}
+                onUploadFile={handleUploadFile}
+                allUsers={demoUsers}
+                groups={visibleGroupsForProject}
+                setActiveGroupId={setActiveGroupId}
+              />
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <AnalyticsPage
+                user={currentUser}
+                leaderboard={leaderboard}
+                bonusProgress={bonusProgress}
+                myTasks={myBonusEligible}
+                myCompletedBeforeDue={myCompletedBeforeDue}
+                avgTeamXp={avgTeamXp}
+              />
+            }
+          />
+          <Route
+            path="*"
+            element={
+              <HomePage
+                user={currentUser}
+                projects={visibleProjects}
+                leaderboard={leaderboard}
+                avgTeamXp={avgTeamXp}
+              />
+            }
+          />
+        </Routes>
       </div>
     </div>
   );
 }
 
-// ---------- Layout components ----------
+// ---------- Shared header ----------
 function Header({ currentUser, onUserChange, onLogout }) {
   return (
     <header className="topbar">
@@ -483,9 +532,7 @@ function Header({ currentUser, onUserChange, onLogout }) {
         <div className="brand-avatar">Δ</div>
         <div>
           <div className="brand-name">DeltaCollab</div>
-          <div className="brand-sub">
-            Professional workspace for managers & teams
-          </div>
+          <div className="brand-sub">Secure workspace for teams & managers</div>
         </div>
       </div>
       <div className="topbar-right">
@@ -508,511 +555,581 @@ function Header({ currentUser, onUserChange, onLogout }) {
   );
 }
 
-function Sidebar({
+// ---------- Pages ----------
+
+function HomePage({ user, projects, leaderboard, avgTeamXp }) {
+  const top = leaderboard[0];
+  return (
+    <div className="home-grid">
+      <section className="home-card home-main">
+        <h2>Welcome back, {user.name}</h2>
+        <p className="home-sub">
+          Use the navigation to switch between projects, squad chat, and
+          analytics. This overview stays focused and clean.
+        </p>
+        <div className="home-metrics">
+          <div className="home-metric">
+            <div className="metric-label">Active projects</div>
+            <div className="metric-value">{projects.length}</div>
+          </div>
+          <div className="home-metric">
+            <div className="metric-label">Workspace XP avg</div>
+            <div className="metric-value">{Math.round(avgTeamXp)} XP</div>
+          </div>
+          {top && (
+            <div className="home-metric">
+              <div className="metric-label">Top performer</div>
+              <div className="metric-value small">
+                {top.name} • {top.score} XP
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="home-card">
+        <h3>Projects</h3>
+        <ul className="home-project-list">
+          {projects.map((p) => (
+            <li key={p.id} className="home-project-row">
+              <div>
+                <div className="home-project-name">{p.name}</div>
+                <div className="home-project-meta">{p.department}</div>
+              </div>
+              <div className="home-health-pill">{p.health}%</div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="home-card">
+        <h3>Quick tips</h3>
+        <ul className="home-tips">
+          <li>Use “Projects & teams” to manage squads and tasks.</li>
+          <li>Use “Chat & files” for conversations and document links.</li>
+          <li>Use “Analytics & XP” to track bonus progress and XP.</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+function ProjectsPage({
   user,
   projects,
   activeProject,
+  setActiveProjectId,
   groups,
   activeGroup,
-  onProjectSelect,
-  onGroupSelect,
-  onCreateGroup,
-}) {
-  const [newGroupName, setNewGroupName] = useState("");
-  const canCreateGroup =
-    can(user, "manage_groups") || can(user, "manage_group_tasks");
-
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-section">
-        <div className="section-title">Projects</div>
-        <ul className="list">
-          {projects.map((p) => (
-            <li
-              key={p.id}
-              className={
-                activeProject?.id === p.id ? "list-item active" : "list-item"
-              }
-              onClick={() => onProjectSelect(p.id)}
-            >
-              <span>{p.name}</span>
-              <span className="pill">{p.health}%</span>
-            </li>
-          ))}
-          {projects.length === 0 && (
-            <li className="list-item muted">No projects visible</li>
-          )}
-        </ul>
-      </div>
-
-      <div className="sidebar-section">
-        <div className="section-title">
-          Squads
-          {canCreateGroup && activeProject && (
-            <span className="mini-pill">+ Create</span>
-          )}
-        </div>
-        <ul className="list">
-          {groups.map((g) => (
-            <li
-              key={g.id}
-              className={
-                activeGroup?.id === g.id ? "list-item active" : "list-item"
-              }
-              onClick={() => onGroupSelect(g.id)}
-            >
-              <span>{g.name}</span>
-              <span className="chip">{g.members.length}</span>
-            </li>
-          ))}
-          {groups.length === 0 && (
-            <li className="list-item muted">No squads yet</li>
-          )}
-        </ul>
-
-        {canCreateGroup && activeProject && (
-          <div className="create-group-box">
-            <input
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="New squad name"
-            />
-            <button
-              onClick={() => {
-                onCreateGroup(activeProject.id, newGroupName);
-                setNewGroupName("");
-              }}
-            >
-              Create
-            </button>
-          </div>
-        )}
-      </div>
-    </aside>
-  );
-}
-
-function TopStrip({ user, project }) {
-  return (
-    <div className="top-strip">
-      <div>
-        <div className="crumbs">
-          {project ? project.department : "No department"} •{" "}
-          {project ? project.name : "No project"}
-        </div>
-        <h1 className="page-title">Team collaboration space</h1>
-      </div>
-      <div className="user-chip">
-        <span className="user-role">{user.role}</span>
-        <span className="user-name">{user.name}</span>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Center column ----------
-function CenterColumn(props) {
-  return (
-    <div className="center-grid">
-      <CollaborationRow {...props} />
-      <CaseSummaryRow {...props} />
-    </div>
-  );
-}
-
-function CollaborationRow({
-  user,
-  project,
-  group,
-  allUsers,
-  messages,
-  files,
+  setActiveGroupId,
   tasks,
-  onSendMessage,
-  onUploadFile,
+  onCreateGroup,
+  onCreateTask,
   onToggleTaskStatus,
   onAssignToMe,
-  onCreateTask,
+  allUsers,
 }) {
-  const [draft, setDraft] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [newGroupName, setNewGroupName] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState(todayIso());
 
+  const canCreateGroup =
+    can(user, "manage_groups") || can(user, "manage_group_tasks");
   const canManageTasks =
     can(user, "manage_tasks") || can(user, "edit_own_tasks");
 
-  const statusLabel = (s) =>
-    s === "todo" ? "To do" : s === "in_progress" ? "In progress" : "Done";
-
-  return (
-    <>
-      <section className="panel">
-        <header className="panel-header">
-          <h2>Squad tasks</h2>
-          <p className="panel-sub">
-            Track deliverables per project. Finish before due date to unlock
-            bonus points.
-          </p>
-        </header>
-        <div className="panel-body">
-          <div className="task-header-row">
-            <div className="small-text">
-              Project: {project?.name} • Squad: {group.name}
-            </div>
-            {canManageTasks && (
-              <div className="task-create">
-                <input
-                  type="text"
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="New task title"
-                />
-                <input
-                  type="date"
-                  value={taskDueDate}
-                  onChange={(e) => setTaskDueDate(e.target.value)}
-                />
-                <button
-                  onClick={() => {
-                    onCreateTask(group.id, taskTitle, taskDueDate);
-                    setTaskTitle("");
-                  }}
-                >
-                  Add
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="task-list">
-            {tasks.map((t) => {
-              const assignee = allUsers.find((u) => u.id === t.assigneeId);
-              const dueSoon =
-                t.status !== "done" &&
-                isBeforeOrSame(t.dueDate, todayIso());
-              const doneBeforeDue =
-                t.status === "done" &&
-                t.completedAt &&
-                isBeforeOrSame(t.completedAt, t.dueDate);
-
-              return (
-                <div
-                  key={t.id}
-                  className={`task-card ${
-                    t.status === "done"
-                      ? "task-done"
-                      : t.status === "in_progress"
-                      ? "task-progress"
-                      : "task-todo"
-                  }`}
-                  onClick={() =>
-                    canManageTasks && onToggleTaskStatus(t.id)
-                  }
-                >
-                  <div className="task-title-row">
-                    <span>{t.title}</span>
-                    <span className="task-status-pill">
-                      {statusLabel(t.status)}
-                    </span>
-                  </div>
-                  <div className="task-meta-row">
-                    <span className="small-text">
-                      Due {t.dueDate}
-                      {dueSoon && t.status !== "done" && " • ⏰"}
-                      {doneBeforeDue && " • ⭐ Bonus"}
-                    </span>
-                    <span className="small-text">
-                      {assignee ? `Owner: ${assignee.name}` : "Unassigned"}
-                    </span>
-                  </div>
-                  {!assignee && (
-                    <button
-                      className="assign-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAssignToMe(t.id);
-                      }}
-                    >
-                      Assign to me
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {tasks.length === 0 && (
-              <div className="empty-card">
-                No tasks yet. Create the first item for this squad.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <header className="panel-header">
-          <h3>Squad chat</h3>
-          <p className="panel-sub">
-            Discuss blockers, decisions, and updates. Files stay attached to
-            this project space.
-          </p>
-        </header>
-        <div className="panel-body chat-body">
-          {messages.map((m) => {
-            const author = allUsers.find((u) => u.id === m.authorId);
-            const isOwn = m.authorId === user.id;
-            return (
-              <div
-                key={m.id}
-                className={isOwn ? "chat-message own" : "chat-message"}
-              >
-                <div className="chat-meta">
-                  <span>{author?.name}</span>
-                  <span>{m.timestamp}</span>
-                </div>
-                <div className="chat-text">{m.text}</div>
-              </div>
-            );
-          })}
-          {messages.length === 0 && (
-            <div className="empty-chat">No messages yet.</div>
-          )}
-        </div>
-        <footer className="chat-input-row">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Type to collaborate with your team…"
-          />
-          <button
-            onClick={() => {
-              onSendMessage(group.id, draft);
-              setDraft("");
-            }}
-          >
-            Send
-          </button>
-        </footer>
-
-        <div className="files-block">
-          <div className="files-header">
-            <span>Shared files</span>
-            <span className="badge">{files.length}</span>
-          </div>
-          <ul className="file-list">
-            {files.map((f) => {
-              const uploader = allUsers.find(
-                (u) => u.id === f.uploadedBy
-              );
-              return (
-                <li key={f.id} className="file-item">
-                  <span className="file-name">📄 {f.name}</span>
-                  <span className="file-meta">
-                    by {uploader ? uploader.name : "Unknown"}
-                  </span>
-                </li>
-              );
-            })}
-            {files.length === 0 && (
-              <li className="file-item muted">No files yet</li>
-            )}
-          </ul>
-          <div className="upload-row">
-            <input
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="Link or file name"
-            />
-            <button
-              onClick={() => {
-                onUploadFile(group.id, fileName);
-                setFileName("");
-              }}
-            >
-              Upload
-            </button>
-          </div>
-        </div>
-      </section>
-    </>
+  const projectTasks = tasks.filter((t) =>
+    groups.some((g) => g.id === t.groupId),
   );
-}
-
-function CaseSummaryRow({ project, group, allUsers, tasks }) {
-  const groupMembers = group.members
-    .map((id) => allUsers.find((u) => u.id === id))
-    .filter(Boolean);
-
-  const totalTasks = tasks.length;
-  const done = tasks.filter((t) => t.status === "done").length;
-  const inProgress = tasks.filter(
-    (t) => t.status === "in_progress"
-  ).length;
-  const todo = tasks.filter((t) => t.status === "todo").length;
+  const groupTasks = activeGroup
+    ? tasks.filter((t) => t.groupId === activeGroup.id)
+    : [];
 
   return (
-    <>
-      <section className="panel">
-        <header className="panel-header">
-          <h3>Project summary</h3>
-          <p className="panel-sub">
-            Snapshot of this squad’s current workload and completion pace.
-          </p>
-        </header>
-        <div className="panel-body">
-          <div className="summary-grid">
-            <div className="summary-item">
-              <div className="summary-label">Project</div>
-              <div className="summary-value">{project?.name}</div>
-              <div className="summary-meta">
-                {project?.department || "—"}
-              </div>
-            </div>
-            <div className="summary-item">
-              <div className="summary-label">Squad</div>
-              <div className="summary-value">{group.name}</div>
-              <div className="summary-meta">
-                {groupMembers.length} active members
-              </div>
-            </div>
-            <div className="summary-item">
-              <div className="summary-label">Tasks</div>
-              <div className="summary-value">{totalTasks}</div>
-              <div className="summary-meta">
-                {done} done • {inProgress} in progress • {todo} todo
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <header className="panel-header">
-          <h3>Squad roster</h3>
-          <p className="panel-sub">
-            Roles and visibility for everyone assigned to this group.
-          </p>
-        </header>
-        <div className="panel-body">
-          <ul className="member-list">
-            {groupMembers.map((m) => (
-              <li key={m.id} className="member-item">
-                <span className="avatar-dot" />
-                <span>{m.name}</span>
-                <span className="member-role">{m.role}</span>
+    <div className="projects-layout">
+      <aside className="sidebar">
+        <div className="sidebar-section">
+          <div className="section-title">Projects</div>
+          <ul className="list">
+            {projects.map((p) => (
+              <li
+                key={p.id}
+                className={
+                  activeProject?.id === p.id ? "list-item active" : "list-item"
+                }
+                onClick={() => setActiveProjectId(p.id)}
+              >
+                <span>{p.name}</span>
+                <span className="pill">{p.health}%</span>
               </li>
             ))}
           </ul>
         </div>
-      </section>
-    </>
+
+        <div className="sidebar-section">
+          <div className="section-title">
+            Squads
+            {canCreateGroup && activeProject && (
+              <span className="mini-pill">+ Create</span>
+            )}
+          </div>
+          <ul className="list">
+            {groups.map((g) => (
+              <li
+                key={g.id}
+                className={
+                  activeGroup?.id === g.id ? "list-item active" : "list-item"
+                }
+                onClick={() => setActiveGroupId(g.id)}
+              >
+                <span>{g.name}</span>
+                <span className="chip">{g.members.length}</span>
+              </li>
+            ))}
+            {groups.length === 0 && (
+              <li className="list-item muted">No squads yet</li>
+            )}
+          </ul>
+
+          {canCreateGroup && activeProject && (
+            <div className="create-group-box">
+              <input
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="New squad name"
+              />
+              <button
+                onClick={() => {
+                  onCreateGroup(activeProject.id, newGroupName);
+                  setNewGroupName("");
+                }}
+              >
+                Create
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <main className="projects-main">
+        <div className="top-strip">
+          <div>
+            <div className="crumbs">
+              {activeProject?.department} • {activeProject?.name}
+            </div>
+            <h1 className="page-title">Projects & teams</h1>
+          </div>
+          <div className="user-chip">
+            <span className="user-role">{user.role}</span>
+            <span className="user-name">{user.name}</span>
+          </div>
+        </div>
+
+        <div className="center-grid">
+          <section className="panel">
+            <header className="panel-header">
+              <h2>Squad tasks</h2>
+              <p className="panel-sub">
+                Manage tasks for the selected squad. Bonus points apply for
+                tasks finished before due date.
+              </p>
+            </header>
+            <div className="panel-body">
+              <div className="task-header-row">
+                <div className="small-text">
+                  Project: {activeProject?.name} • Squad:{" "}
+                  {activeGroup?.name || "None"}
+                </div>
+                {canManageTasks && activeGroup && (
+                  <div className="task-create">
+                    <input
+                      type="text"
+                      value={taskTitle}
+                      onChange={(e) => setTaskTitle(e.target.value)}
+                      placeholder="New task title"
+                    />
+                    <input
+                      type="date"
+                      value={taskDueDate}
+                      onChange={(e) => setTaskDueDate(e.target.value)}
+                    />
+                    <button
+                      onClick={() => {
+                        onCreateTask(activeGroup.id, taskTitle, taskDueDate);
+                        setTaskTitle("");
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="task-list">
+                {groupTasks.map((t) => {
+                  const assignee = allUsers.find((u) => u.id === t.assigneeId);
+                  const dueSoon =
+                    t.status !== "done" &&
+                    isBeforeOrSame(t.dueDate, todayIso());
+                  const doneBeforeDue =
+                    t.status === "done" &&
+                    t.completedAt &&
+                    isBeforeOrSame(t.completedAt, t.dueDate);
+
+                  return (
+                    <div
+                      key={t.id}
+                      className={`task-card ${
+                        t.status === "done"
+                          ? "task-done"
+                          : t.status === "in_progress"
+                            ? "task-progress"
+                            : "task-todo"
+                      }`}
+                      onClick={() => onToggleTaskStatus(t.id)}
+                    >
+                      <div className="task-title-row">
+                        <span>{t.title}</span>
+                        <span className="task-status-pill">
+                          {t.status === "todo"
+                            ? "To do"
+                            : t.status === "in_progress"
+                              ? "In progress"
+                              : "Done"}
+                        </span>
+                      </div>
+                      <div className="task-meta-row">
+                        <span className="small-text">
+                          Due {t.dueDate}
+                          {dueSoon && t.status !== "done" && " • ⏰"}
+                          {doneBeforeDue && " • ⭐ Bonus"}
+                        </span>
+                        <span className="small-text">
+                          {assignee ? `Owner: ${assignee.name}` : "Unassigned"}
+                        </span>
+                      </div>
+                      {!assignee && (
+                        <button
+                          className="assign-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAssignToMe(t.id);
+                          }}
+                        >
+                          Assign to me
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {groupTasks.length === 0 && (
+                  <div className="empty-card">No tasks for this squad yet.</div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <header className="panel-header">
+              <h3>Project summary</h3>
+              <p className="panel-sub">
+                High‑level view of tasks across squads in this project.
+              </p>
+            </header>
+            <div className="panel-body">
+              <div className="summary-grid">
+                <div className="summary-item">
+                  <div className="summary-label">Project</div>
+                  <div className="summary-value">{activeProject?.name}</div>
+                  <div className="summary-meta">
+                    {activeProject?.department}
+                  </div>
+                </div>
+                <div className="summary-item">
+                  <div className="summary-label">Squads</div>
+                  <div className="summary-value">{groups.length}</div>
+                  <div className="summary-meta">
+                    {groups
+                      .map((g) => g.name)
+                      .join(", ")
+                      .slice(0, 40)}
+                    {groups.length > 0 ? "…" : ""}
+                  </div>
+                </div>
+                <div className="summary-item">
+                  <div className="summary-label">Tasks (all squads)</div>
+                  <div className="summary-value">{projectTasks.length}</div>
+                  <div className="summary-meta">
+                    {projectTasks.filter((t) => t.status === "done").length}{" "}
+                    done •{" "}
+                    {
+                      projectTasks.filter((t) => t.status === "in_progress")
+                        .length
+                    }{" "}
+                    in progress
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
   );
 }
 
-// ---------- Right column ----------
-function RightColumn({
+function ChatPage({
   user,
-  points,
-  users,
+  project,
+  group,
+  messages,
+  files,
+  onSendMessage,
+  onUploadFile,
+  allUsers,
+  groups,
+  setActiveGroupId,
+}) {
+  const [draft, setDraft] = useState("");
+  const [fileName, setFileName] = useState("");
+
+  return (
+    <div className="projects-layout">
+      <aside className="sidebar">
+        <div className="sidebar-section">
+          <div className="section-title">Squad channels</div>
+          <ul className="list">
+            {groups.map((g) => (
+              <li
+                key={g.id}
+                className={
+                  group?.id === g.id ? "list-item active" : "list-item"
+                }
+                onClick={() => setActiveGroupId(g.id)}
+              >
+                <span>{g.name}</span>
+                <span className="chip">{g.members.length}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </aside>
+
+      <main className="projects-main">
+        <div className="top-strip">
+          <div>
+            <div className="crumbs">
+              {project?.department} • {project?.name}
+            </div>
+            <h1 className="page-title">Chat & files</h1>
+          </div>
+          <div className="user-chip">
+            <span className="user-role">{user.role}</span>
+            <span className="user-name">{user.name}</span>
+          </div>
+        </div>
+
+        <div className="center-grid">
+          <section className="panel">
+            <header className="panel-header">
+              <h3>Squad chat</h3>
+              <p className="panel-sub">
+                Conversations stay attached to this squad’s project channel.
+              </p>
+            </header>
+            <div className="panel-body chat-body">
+              {messages.map((m) => {
+                const author = allUsers.find((u) => u.id === m.authorId);
+                const isOwn = m.authorId === user.id;
+                return (
+                  <div
+                    key={m.id}
+                    className={isOwn ? "chat-message own" : "chat-message"}
+                  >
+                    <div className="chat-meta">
+                      <span>{author?.name}</span>
+                      <span>{m.timestamp}</span>
+                    </div>
+                    <div className="chat-text">{m.text}</div>
+                  </div>
+                );
+              })}
+              {messages.length === 0 && (
+                <div className="empty-chat">
+                  No messages yet. Start the first discussion.
+                </div>
+              )}
+            </div>
+            <footer className="chat-input-row">
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Type to collaborate with your squad…"
+              />
+              <button
+                onClick={() => {
+                  onSendMessage(group.id, draft);
+                  setDraft("");
+                }}
+              >
+                Send
+              </button>
+            </footer>
+          </section>
+
+          <section className="panel">
+            <header className="panel-header">
+              <h3>Shared files</h3>
+              <p className="panel-sub">
+                Links and documents shared in this squad.
+              </p>
+            </header>
+            <div className="panel-body">
+              <ul className="file-list">
+                {files.map((f) => {
+                  const uploader = allUsers.find((u) => u.id === f.uploadedBy);
+                  return (
+                    <li key={f.id} className="file-item">
+                      <span className="file-name">📄 {f.name}</span>
+                      <span className="file-meta">
+                        by {uploader ? uploader.name : "Unknown"}
+                      </span>
+                    </li>
+                  );
+                })}
+                {files.length === 0 && (
+                  <li className="file-item muted">No files yet</li>
+                )}
+              </ul>
+              <div className="upload-row">
+                <input
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="Link or file name"
+                />
+                <button
+                  onClick={() => {
+                    onUploadFile(group.id, fileName);
+                    setFileName("");
+                  }}
+                >
+                  Upload
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function AnalyticsPage({
+  user,
+  leaderboard,
   bonusProgress,
   myTasks,
   myCompletedBeforeDue,
+  avgTeamXp,
 }) {
-  const leaderboard = [...users]
-    .map((u) => ({ ...u, score: points[u.id] || 0 }))
-    .sort((a, b) => b.score - a.score);
-
-  const myScore = points[user.id] || 0;
+  const myScore = leaderboard.find((u) => u.id === user.id)?.score || 0;
   const level = Math.floor(myScore / 100) + 1;
   const nextLevelAt = level * 100;
   const levelBase = (level - 1) * 100;
   const levelProgress = Math.min(
     100,
-    Math.round(
-      ((myScore - levelBase) / (nextLevelAt - levelBase || 1)) * 100
-    )
+    Math.round(((myScore - levelBase) / (nextLevelAt - levelBase || 1)) * 100),
   );
 
   const completedCount = myCompletedBeforeDue.length;
   const taskCount = myTasks.length;
 
-  const avgTeamXp =
-    leaderboard.reduce((sum, u) => sum + u.score, 0) /
-    (leaderboard.length || 1);
-
   return (
-    <aside className="gamify">
-      <div className="gamify-card">
-        <h3>Bonus progress</h3>
-        <p className="gamify-sub">
-          Complete bonus‑eligible tasks before due date to earn extra points.
-        </p>
-        <div className="xp-bar">
-          <div
-            className="xp-fill"
-            style={{ width: `${bonusProgress}%` }}
-          />
+    <div className="analytics-layout">
+      <main className="analytics-main">
+        <div className="top-strip">
+          <div>
+            <div className="crumbs">Company • Analytics</div>
+            <h1 className="page-title">Analytics & XP</h1>
+          </div>
+          <div className="user-chip">
+            <span className="user-role">{user.role}</span>
+            <span className="user-name">{user.name}</span>
+          </div>
         </div>
-        <div className="xp-next">
-          {completedCount}/{taskCount} tasks on time • {bonusProgress}%
-        </div>
-      </div>
 
-      <div className="gamify-card">
-        <h3>XP & level</h3>
-        <p className="gamify-sub">
-          XP accumulates when you close tasks, share files, and collaborate.
-        </p>
-        <div className="xp-row">
-          <div className="xp-label">
-            Level {level} • {myScore} XP
-          </div>
-          <div className="xp-bar">
-            <div
-              className="xp-fill"
-              style={{ width: `${levelProgress}%` }}
-            />
-          </div>
-          <div className="xp-next">
-            {nextLevelAt - myScore} XP to reach Level {level + 1}
-          </div>
-        </div>
-      </div>
+        <div className="center-grid">
+          <section className="gamify-card">
+            <h3>Bonus progress</h3>
+            <p className="gamify-sub">
+              Complete bonus‑eligible tasks before due date to earn extra
+              points.
+            </p>
+            <div className="xp-bar">
+              <div className="xp-fill" style={{ width: `${bonusProgress}%` }} />
+            </div>
+            <div className="xp-next">
+              {completedCount}/{taskCount} tasks on time • {bonusProgress}%
+            </div>
+          </section>
 
-      <div className="gamify-card">
-        <h3>Leaderboard</h3>
-        <ul className="leader-list">
-          {leaderboard.map((u, i) => (
-            <li
-              key={u.id}
-              className={
-                u.id === user.id ? "leader-item me" : "leader-item"
-              }
-            >
-              <span className="leader-rank">#{i + 1}</span>
-              <span className="leader-name">{u.name}</span>
-              <span className="leader-score">{u.score} XP</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+          <section className="gamify-card">
+            <h3>XP & level</h3>
+            <p className="gamify-sub">
+              XP grows as you close tasks, share files, and keep squads moving.
+            </p>
+            <div className="xp-row">
+              <div className="xp-label">
+                Level {level} • {myScore} XP
+              </div>
+              <div className="xp-bar">
+                <div
+                  className="xp-fill"
+                  style={{ width: `${levelProgress}%` }}
+                />
+              </div>
+              <div className="xp-next">
+                {nextLevelAt - myScore} XP to reach Level {level + 1}
+              </div>
+            </div>
+          </section>
 
-      <div className="gamify-card">
-        <h3>Team metrics</h3>
-        <p className="gamify-sub">
-          Quick pulse of how the workspace is performing overall.
-        </p>
-        <div className="xp-row">
-          <div className="xp-label">
-            Avg XP per member: {Math.round(avgTeamXp)}
-          </div>
-          <div className="xp-next">
-            Top performer: {leaderboard[0]?.name} with{" "}
-            {leaderboard[0]?.score} XP
-          </div>
+          <section className="gamify-card">
+            <h3>Leaderboard</h3>
+            <ul className="leader-list">
+              {leaderboard.map((u, i) => (
+                <li
+                  key={u.id}
+                  className={
+                    u.id === user.id ? "leader-item me" : "leader-item"
+                  }
+                >
+                  <span className="leader-rank">#{i + 1}</span>
+                  <span className="leader-name">{u.name}</span>
+                  <span className="leader-score">{u.score} XP</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="gamify-card">
+            <h3>Team metrics</h3>
+            <p className="gamify-sub">
+              Quick pulse of how the workspace is performing overall.
+            </p>
+            <div className="xp-row">
+              <div className="xp-label">
+                Avg XP per member: {Math.round(avgTeamXp)}
+              </div>
+              <div className="xp-next">
+                Top performer: {leaderboard[0]?.name} with{" "}
+                {leaderboard[0]?.score} XP
+              </div>
+            </div>
+          </section>
         </div>
-      </div>
-    </aside>
+      </main>
+    </div>
   );
 }
 

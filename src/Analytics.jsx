@@ -14,14 +14,13 @@ const Analytics = () => {
   ];
 
   return (
-    <div className="analytics-container animated-fade">
-      <h2 className="text-glow">📊 System Analytics</h2>
+    <div className="analytics-container animated-fade card">
+      <h2 className="header">📊 System Analytics</h2>
 
       <div className="analytics-grid-main">
-        
         {/* 1. PERFORMANCE GRAPHS */}
         <div className="ana-card">
-          <h3>System Performance</h3>
+          <h3>🚀 System Performance</h3>
           <div className="ana-perf-list">
             <div className="ana-perf-item">
               <div className="ana-perf-info">
@@ -29,7 +28,10 @@ const Analytics = () => {
                 <span>92%</span>
               </div>
               <div className="ana-progress-bg">
-                <div className="ana-progress-fill blue" style={{ width: "92%" }}></div>
+                <div
+                  className="ana-progress-fill blue"
+                  style={{ width: "92%" }}
+                ></div>
               </div>
             </div>
             <div className="ana-perf-item">
@@ -38,7 +40,10 @@ const Analytics = () => {
                 <span>24%</span>
               </div>
               <div className="ana-progress-bg">
-                <div className="ana-progress-fill green" style={{ width: "24%" }}></div>
+                <div
+                  className="ana-progress-fill green"
+                  style={{ width: "24%" }}
+                ></div>
               </div>
             </div>
             <div className="ana-perf-item">
@@ -47,7 +52,10 @@ const Analytics = () => {
                 <span>12ms</span>
               </div>
               <div className="ana-progress-bg">
-                <div className="ana-progress-fill purple" style={{ width: "15%" }}></div>
+                <div
+                  className="ana-progress-fill purple"
+                  style={{ width: "15%" }}
+                ></div>
               </div>
             </div>
           </div>
@@ -55,25 +63,31 @@ const Analytics = () => {
 
         {/* 2. PIE CHART (System Health) */}
         <div className="ana-card center-content">
-          <h3>Traffic Distribution</h3>
+          <h3>📈 Traffic Distribution</h3>
           <div className="ana-pie-wrapper">
             <div className="ana-pie-chart"></div>
             <div className="ana-pie-legend">
-              <div className="leg-item"><span className="dot green"></span> Valid</div>
-              <div className="leg-item"><span className="dot yellow"></span> Flagged</div>
-              <div className="leg-item"><span className="dot red"></span> Bot</div>
+              <div className="leg-item">
+                <span className="dot green"></span> Valid
+              </div>
+              <div className="leg-item">
+                <span className="dot yellow"></span> Flagged
+              </div>
+              <div className="leg-item">
+                <span className="dot red"></span> Bot
+              </div>
             </div>
           </div>
         </div>
 
         {/* 3. BAR GRAPH (Daily Volume) */}
-        <div className="ana-card full-width">
-          <h3>Daily Verification Volume</h3>
+        <div className="ana-card">
+          <h3>📊 Daily Verification Volume</h3>
           <div className="ana-bar-chart">
             {volumeData.map((d, i) => (
               <div key={i} className="ana-bar-col">
-                <div 
-                  className="ana-bar-pill" 
+                <div
+                  className="ana-bar-pill"
                   style={{ height: `${d.val}%` }}
                   title={`${d.val} units`}
                 >
@@ -84,7 +98,6 @@ const Analytics = () => {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );
