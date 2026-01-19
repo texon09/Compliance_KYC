@@ -399,7 +399,7 @@ function App() {
     return (
       <div className="login-shell">
         <div className="login-card">
-          <h1>Company Control Room</h1>
+          <h1>Company user interface</h1>
           <p className="login-sub">
             ENTER ID
           </p>
@@ -414,7 +414,7 @@ function App() {
             </label>
             {loginError && <div className="login-error">{loginError}</div>}
             <button type="submit" className="btn-primary">
-              Sign in
+              Sign In
             </button>
           </form>
           <div className="login-hint">
@@ -444,7 +444,7 @@ function App() {
           Chat & files
         </NavLink>
         <NavLink to="/analytics" className="nav-tab">
-          Analytics & XP
+          Analytics XP
         </NavLink>
       </div>
 
