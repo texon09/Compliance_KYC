@@ -1,7 +1,11 @@
-import { useMemo, useState } from "react";
-import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
-import "./App.css";
-import Dashboard from "./Dashboard";
+import { useState, useMemo, useEffect } from 'react';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import Header from './Header.jsx'; // FIXED: Direct path
+import HomePage from './Home.jsx';
+import Dashboard from './Dashboard.jsx'; // Your existing Dashboard
+import ChatPage from './Chatpage.jsx'; // Your new Chatpage.jsx
+import AdminPage from './Adminpage.jsx'; // Your new Adminpage.jsx
+import Analytics from './Analytics.jsx';
 
 // ---------- Roles & RBAC ----------
 const ROLES = {
@@ -397,7 +401,7 @@ function App() {
         <div className="login-card">
           <h1>Company Control Room</h1>
           <p className="login-sub">
-            Enter your company ID to access your role‑based dashboard.
+            ENTER ID
           </p>
           <form onSubmit={handleLogin} className="login-form">
             <label>
@@ -531,8 +535,8 @@ function Header({ currentUser, onUserChange, onLogout }) {
       <div className="topbar-left">
         <div className="brand-avatar">Δ</div>
         <div>
-          <div className="brand-name">DeltaCollab</div>
-          <div className="brand-sub">Secure workspace for teams & managers</div>
+          <div className="brand-name">ASTUCOMPLY</div>
+          <div className="brand-sub">SECURE KYC AND AML PROVIDER</div>
         </div>
       </div>
       <div className="topbar-right">
